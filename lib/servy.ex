@@ -5,4 +5,3 @@ defmodule Servy do
 end
 
 
-IO.puts Servy.hello("swm")
