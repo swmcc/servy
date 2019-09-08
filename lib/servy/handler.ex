@@ -1,7 +1,11 @@
 defmodule Servy.Handler do
   @moduledoc "Handles HTTP requests."
 
-  @pages_path Path.expand("../../pages/", __DIR__)
+  @pages_path Path.expand("pages", File.cwd!)
+
+  import Servy.Plugins, only: [rewrite_path: 1, log: 1, track: 1]
+  import Servy.Parser, only: [parse: 1]
+  import Servy.FileHandler, only: [handle_file: 2]
 
   @doc "Transforms the request into a response."
   def handle(request) do
@@ -12,28 +16,6 @@ defmodule Servy.Handler do
     |> route
     |> track
     |> format_response
-  end
-
-  @doc "Rewrites the path for wildlife"
-  def rewrite_path(%{path: "/wildlife"} = conv ) do
-    %{ conv | path: "/wildthings"}
-  end
-
-  @doc "Fall through for any path that doesn't need rewritten."
-  def rewrite_path(conv), do: conv
-
-  @doc "Parse the request to get the METHOD and the PATH of the request."
-  def parse(request) do
-    [method, path, _] =
-      request 
-      |> String.split("\n")
-      |> List.first
-      |> String.split(" ") 
-
-    %{ method: method, 
-       path: path, 
-       resp_body: "",
-       status: nil }
   end
 
   @doc "Returns the content for GET /wildthings"
@@ -67,21 +49,6 @@ defmodule Servy.Handler do
        |> handle_file(conv)
    end
 
-   @doc "Returns the content for a successful internal file found (200)"
-   def handle_file({:ok, content}, conv) do
-     %{ conv | status: 200, resp_body: content }
-   end
-
-   @doc "Returns an error code and string for an internal file that doesn't exist (404)"
-   def handle_file({:error, :enoent}, conv) do
-     %{ conv | status: 404, resp_body: "File not found!" }
-   end
-
-   @doc "Returns the an error code and string for issues on a server re: an internal file (500)"
-   def handle_file({:error, reason}, conv) do
-     %{ conv | status: 500, resp_body: "File error: #{reason}" }
-   end
-
    @doc "Returns the content for any file that has a corresponding content file in pages/"
    def route(%{method: "GET", path: "/pages/" <> file} = conv) do
      @pages_path
@@ -90,7 +57,7 @@ defmodule Servy.Handler do
      |> handle_file(conv)
    end
 
-  @doc "Returns a 404 response"
+   @doc "Returns a 404 response"
   def route(%{ path: path } = conv) do
     %{ conv | status: 404, resp_body: "Couldn't find #{path}!"}
   end
@@ -105,17 +72,6 @@ defmodule Servy.Handler do
     #{conv.resp_body}
     """
   end
-
-  @doc "Logs output"
-  def log(conv), do: IO.inspect conv
- 
-  @doc "Tracks a status"
-  def track(%{status: 404, path: path} = conv) do
-    IO.puts "WARNING: #{path} not found!"
-    conv
-  end
-
-  def track(conv), do: conv
 
   defp status_reason(code) do
     %{
